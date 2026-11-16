@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14201f">
+<title>Transcrição Visual</title>
+<style>
+  :root{
+    --bg:#101a19; --panel:#172524; --panel2:#1e3130; --line:#2c4644;
+    --ink:#e9f1ef; --mute:#8fa8a4; --accent:#f2b84b; --rec:#e5594f;
+    --r:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;background:#0b1211;color:var(--ink);
+    font-family:"Atkinson Hyperlegible","Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+
+  .win{position:fixed;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--bg);border:1px solid var(--line);
+    inset:0;border-radius:0;
+    padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0)}
+  @media (min-width:640px){
+    .win{inset:auto 16px 16px auto;width:min(440px,calc(100vw - 32px));
+      height:min(680px,calc(100vh - 32px));border-radius:var(--r);
+      box-shadow:0 18px 50px rgba(0,0,0,.55)}
+  }
+
+  header{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);
+    border-bottom:1px solid var(--line);touch-action:none}
+  @media (min-width:640px){header{cursor:grab}}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--mute);flex:none}
+  .dot.on{background:var(--rec);box-shadow:0 0 0 4px rgba(229,89,79,.25);animation:pulse 1.4s infinite}
+  @keyframes pulse{50%{box-shadow:0 0 0 7px rgba(229,89,79,0)}}
+  @media (prefers-reduced-motion:reduce){.dot.on{animation:none}}
+  .status{flex:1;font-size:13px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  select,button{font:inherit;color:var(--ink)}
+  select{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 4px;font-size:13px}
+  .btn{border:1px solid var(--line);background:var(--panel2);border-radius:10px;
+    min-height:40px;padding:0 14px;font-size:14px;cursor:pointer}
+  .btn:focus-visible,select:focus-visible,.w:focus-visible,.thumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .btn.main{background:var(--accent);color:#1a1405;border-color:var(--accent);font-weight:700}
+  .btn.main.on{background:var(--rec);border-color:var(--rec);color:#fff}
+  .icon{min-width:40px;padding:0}
+
+  #scroller{flex:1;overflow-y:auto;padding:14px 14px 40px;scroll-behavior:smooth;overscroll-behavior:contain}
+  #empty{color:var(--mute);line-height:1.5;font-size:15px}
+  .seg{font-size:var(--fs,20px);line-height:1.65;margin:0 0 6px}
+  .w{display:inline;padding:1px 2px;margin:0 -1px;border-radius:6px;cursor:pointer}
+  .w:hover{background:var(--panel2)}
+  .w.done{border-bottom:2px solid var(--accent)}
+  .w.sel{background:var(--accent);color:#1a1405}
+  #interim{font-size:var(--fs,20px);line-height:1.65;color:var(--mute);font-style:italic}
+
+  .panel{margin:8px 0 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+  .ph{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .ph b{flex:1;font-size:15px}
+  .row{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
+  .thumb{flex:none;height:120px;border:0;padding:0;border-radius:10px;overflow:hidden;
+    background:var(--panel2);cursor:pointer;scroll-snap-align:start}
+  .thumb img{height:100%;width:auto;min-width:80px;display:block;object-fit:cover}
+  .msg{color:var(--mute);font-size:14px;line-height:1.5}
+  .msg a{color:var(--accent)}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);
+    border-radius:50%;vertical-align:-2px;margin-right:6px;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  #light{position:absolute;inset:0;background:rgba(8,14,13,.94);display:none;flex-direction:column;
+    padding:12px;gap:10px;z-index:5}
+  #light.show{display:flex}
+  #light .img{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+  #light img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+  #light .cap{font-size:13px;color:var(--mute);line-height:1.4}
+  #light .cap a{color:var(--accent)}
+  .bar{display:flex;gap:8px;padding:8px 10px;background:var(--panel);border-top:1px solid var(--line)}
+  .bar .main{flex:1}
+</style>
+</head>
+<body>
+<div class="win" id="win">
+  <header id="drag">
+    <span class="dot" id="dot"></span>
+    <span class="status" id="status">Toque em Ouvir para começar</span>
+    <select id="lang" aria-label="Idioma da fala">
+      <option value="pt-BR">PT</option>
+      <option value="en-US">EN</option>
+      <option value="es-ES">ES</option>
+    </select>
+    <button class="btn icon" id="fsDown" aria-label="Diminuir letra">A−</button>
+    <button class="btn icon" id="fsUp" aria-label="Aumentar letra">A+</button>
+  </header>
+
+  <div id="scroller">
+    <p id="empty">A fala vai aparecer aqui. Toque em qualquer palavra para ver imagens dela; a transcrição continua rodando.</p>
+    <div id="log"></div>
+    <div id="interim"></div>
+  </div>
+
+  <div class="bar">
+    <button class="btn main" id="mic">Ouvir</button>
+    <button class="btn" id="clear">Limpar</button>
+  </div>
+
+  <div id="light">
+    <div class="img"><img id="lImg" alt=""></div>
+    <div class="cap" id="lCap"></div>
+    <button class="btn main" id="lClose">Fechar imagem</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const log = $('log'), interim = $('interim'), scroller = $('scroller'),
+        statusEl = $('status'), dot = $('dot'), micBtn = $('mic'), empty = $('empty');
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null, wanted = false, lastFinal = '';
+  let openPanel = null, openWord = null;
+  const cache = new Map(); // "idioma:palavra" -> Promise de imagens (evita buscas repetidas)
+  const searched = new Set();
+
+  const setStatus = t => statusEl.textContent = t;
+
+  /* ---------- Rolagem automática (só acompanha se o usuário estiver no fim) ---------- */
+  const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 90;
+  const follow = was => { if (was) scroller.scrollTop = scroller.scrollHeight; };
+
+  /* ---------- Transcrição ---------- */
+  const clean = s => s.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+
+  function addSegment(text) {
+    const was = nearBottom();
+    empty.style.display = 'none';
+    const p = document.createElement('p');
+    p.className = 'seg';
+    text.split(/(\s+)/).forEach(tok => {
+      if (!tok) return;
+      const q = clean(tok);
+      if (/^\s+$/.test(tok) || !q) { p.append(tok); return; }
+      const b = document.createElement('span');
+      b.className = 'w'; b.textContent = tok; b.dataset.q = q;
+      b.tabIndex = 0; b.setAttribute('role', 'button');
+      if (searched.has(key(q))) b.classList.add('done');
+      p.append(b);
+    });
+    log.append(p);
+    follow(was);
+  }
+
+  const key = q => $('lang').value.slice(0, 2) + ':' + q.toLocaleLowerCase();
+
+  /* ---------- Reconhecimento de voz ---------- */
+  function build() {
+    rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = $('lang').value;
+    rec.onstart = () => { dot.classList.add('on'); setStatus('Ouvindo…'); };
+    rec.onresult = e => {
+      let tmp = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i], t = r[0].transcript.trim();
+        if (r.isFinal) {
+          if (t && t !== lastFinal) { addSegment(t); lastFinal = t; }
+        } else tmp += r[0].transcript;
+      }
+      const was = nearBottom();
+      interim.textContent = tmp;
+      follow(was);
+    };
+    rec.onerror = e => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        wanted = false;
+        setStatus('Microfone bloqueado. Libere a permissão do site no navegador.');
+      } else if (e.error === 'network') {
+        setStatus('Sem internet: o reconhecimento de voz precisa de conexão.');
+      } else if (e.error === 'audio-capture') {
+        wanted = false; setStatus('Nenhum microfone encontrado.');
+      }
+      // no-speech / aborted: o onend reinicia sozinho
+    };
+    rec.onend = () => {
+      interim.textContent = '';
+      dot.classList.remove('on');
+      if (wanted) setTimeout(() => { try { rec.start(); } catch (_) {} }, 250); // Android encerra sozinho
+      else { micBtn.textContent = 'Ouvir'; micBtn.classList.remove('on'); if (!statusEl.textContent.startsWith('Microfone') && !statusEl.textContent.startsWith('Sem')) setStatus('Pausado'); }
+    };
+  }
+
+  function start() {
+    if (!SR) { setStatus('Este navegador não tem reconhecimento de voz. Use o Chrome.'); return; }
+    if (!rec) build();
+    rec.lang = $('lang').value;
+    wanted = true; lastFinal = '';
+    micBtn.textContent = 'Pausar'; micBtn.classList.add('on');
+    try { rec.start(); } catch (_) {}
+  }
+  function stop() {
+    wanted = false;
+    micBtn.textContent = 'Ouvir'; micBtn.classList.remove('on');
+    if (rec) try { rec.stop(); } catch (_) {}
+    setStatus('Pausado');
+  }
+
+  micBtn.onclick = () => wanted ? stop() : start();
+  $('lang').onchange = () => { const w = wanted; if (w) stop(); rec = null; if (w) setTimeout(start, 400); };
+  $('clear').onclick = () => {
+    closePanel(); log.innerHTML = ''; interim.textContent = ''; lastFinal = '';
+    empty.style.display = '';
+  };
+
+  /* ---------- Busca de imagens (Wikipédia + Wikimedia Commons, sem chave) ---------- */
+  async function getJSON(url) {
+    const c = new AbortController(), t = setTimeout(() => c.abort(), 10000);
+    try {
+      const r = await fetch(url, { signal: c.signal });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } finally { clearTimeout(t); }
+  }
+  const pages = j => Object.values((j && j.query && j.query.pages) || {}).sort((a, b) => a.index - b.index);
+
+  async function fetchImages(q, wl) {
+    const enc = encodeURIComponent(q);
+    const wp = `https://${wl}.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrsearch=${enc}&gsrlimit=8&prop=pageimages&piprop=thumbnail&pithumbsize=420&pilimit=8`;
+    const cm = `https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(q + ' filetype:bitmap')}&gsrlimit=14&prop=imageinfo&iiprop=url&iiurlwidth=420`;
+    const [a, b] = await Promise.allSettled([getJSON(wp), getJSON(cm)]);
+    if (a.status === 'rejected' && b.status === 'rejected') throw new Error('rede');
+    const out = [], seen = new Set();
+    const push = (src, title, link) => { if (src && !seen.has(src)) { seen.add(src); out.push({ src, title, link }); } };
+    if (a.status === 'fulfilled') pages(a.value).forEach(p =>
+      push(p.thumbnail && p.thumbnail.source, p.title + ' (Wikipédia)', `https://${wl}.wikipedia.org/?curid=${p.pageid}`));
+    if (b.status === 'fulfilled') pages(b.value).forEach(p => {
+      const ii = p.imageinfo && p.imageinfo[0];
+      if (ii) push(ii.thumburl, p.title.replace(/^File:/, '').replace(/\.\w+$/, ''), ii.descriptionurl);
+    });
+    return out;
+  }
+
+  function search(q) {
+    const k = key(q);
+    if (!cache.has(k)) {
+      const p = fetchImages(q, $('lang').value.slice(0, 2));
+      cache.set(k, p);
+      p.catch(() => cache.delete(k)); // falhas não ficam em cache: dá para tentar de novo
+    }
+    return cache.get(k);
+  }
+
+  /* ---------- Painel de imagens logo abaixo da palavra ---------- */
+  function closePanel() {
+    if (openPanel) openPanel.remove();
+    if (openWord) openWord.classList.remove('sel');
+    openPanel = openWord = null;
+  }
+
+  function showPanel(wordEl) {
+    const q = wordEl.dataset.q;
+    if (openWord === wordEl) { closePanel(); return; }
+    closePanel();
+    openWord = wordEl; wordEl.classList.add('sel');
+
+    const panel = document.createElement('div');
+    panel.className = 'panel';
+    panel.innerHTML = '<div class="ph"><b></b><button class="btn icon" aria-label="Fechar">✕</button></div><div class="body"></div>';
+    panel.querySelector('b').textContent = q;
+    panel.querySelector('button').onclick = closePanel;
+    const body = panel.querySelector('.body');
+    body.innerHTML = '<span class="msg"><span class="spin"></span>Buscando imagens…</span>';
+    wordEl.closest('.seg').after(panel);
+    openPanel = panel;
+    panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    const google = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`;
+    search(q).then(list => {
+      if (openPanel !== panel) return;
+      searched.add(key(q));
+      document.querySelectorAll('.w').forEach(w => { if (w.dataset.q.toLocaleLowerCase() === q.toLocaleLowerCase()) w.classList.add('done'); });
+      if (!list.length) {
+        body.innerHTML = `<span class="msg">Nada encontrado para “${'' }”. <a target="_blank" rel="noopener" href="${google}">Tentar no Google Imagens</a></span>`;
+        body.querySelector('.msg').firstChild.textContent = `Nada encontrado para “${q}”. `;
+        return;
+      }
+      const row = document.createElement('div'); row.className = 'row';
+      list.forEach(it => {
+        const b = document.createElement('button'); b.className = 'thumb'; b.setAttribute('aria-label', it.title);
+        const im = document.createElement('img'); im.src = it.src; im.alt = it.title; im.loading = 'lazy';
+        b.append(im); b.onclick = () => openLight(it); row.append(b);
+      });
+      body.innerHTML = ''; body.append(row);
+    }).catch(() => {
+      if (openPanel !== panel) return;
+      body.innerHTML = '';
+      const m = document.createElement('span'); m.className = 'msg';
+      m.textContent = 'Não foi possível buscar agora. Verifique a internet. ';
+      const r = document.createElement('a'); r.href = '#'; r.textContent = 'Tentar de novo';
+      r.onclick = ev => { ev.preventDefault(); const w = openWord; closePanel(); showPanel(w); };
+      m.append(r); body.append(m);
+    });
+  }
+
+  // Um único listener para todas as palavras (inclusive as que ainda vão chegar)
+  const activate = ev => {
+    const w = ev.target.closest && ev.target.closest('.w');
+    if (w) showPanel(w);
+  };
+  log.addEventListener('click', activate);
+  log.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); activate(ev); } });
+
+  /* ---------- Imagem ampliada dentro da janela ---------- */
+  function openLight(it) {
+    $('lImg').src = it.src; $('lImg').alt = it.title;
+    const cap = $('lCap'); cap.textContent = it.title + ' · ';
+    const a = document.createElement('a'); a.href = it.link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'ver fonte';
+    cap.append(a);
+    $('light').classList.add('show');
+  }
+  $('lClose').onclick = () => $('light').classList.remove('show');
+  $('light').addEventListener('click', e => { if (e.target.id === 'light' || e.target.classList.contains('img')) $('light').classList.remove('show'); });
+
+  /* ---------- Tamanho da letra ---------- */
+  let fs = +localStorage.getItem('tv_fs') || 20;
+  const applyFs = () => { document.documentElement.style.setProperty('--fs', fs + 'px'); try { localStorage.setItem('tv_fs', fs); } catch (_) {} };
+  $('fsUp').onclick = () => { fs = Math.min(36, fs + 2); applyFs(); };
+  $('fsDown').onclick = () => { fs = Math.max(14, fs - 2); applyFs(); };
+  applyFs();
+
+  /* ---------- Janela arrastável (computador) ---------- */
+  const win = $('win'), hd = $('drag');
+  let dx = 0, dy = 0, dragging = false;
+  hd.addEventListener('pointerdown', e => {
+    if (innerWidth < 640 || e.target.closest('button,select')) return;
+    dragging = true; const r = win.getBoundingClientRect(); dx = e.clientX - r.left; dy = e.clientY - r.top;
+    hd.setPointerCapture(e.pointerId);
+  });
+  hd.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    win.style.right = 'auto'; win.style.bottom = 'auto';
+    win.style.left = Math.max(0, Math.min(innerWidth - 100, e.clientX - dx)) + 'px';
+    win.style.top = Math.max(0, Math.min(innerHeight - 60, e.clientY - dy)) + 'px';
+  });
+  hd.addEventListener('pointerup', () => dragging = false);
+
+  if (!SR) setStatus('Reconhecimento de voz indisponível aqui. Abra no Chrome.');
+})();
+</script>
+</body>
+</html>
